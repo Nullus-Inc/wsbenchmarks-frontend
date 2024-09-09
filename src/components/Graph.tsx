@@ -174,7 +174,7 @@ export default function StockGraph() {
           <div
             key={range}
             onClick={() => setDateRange(range as DateRange)}
-            className={`px-3 py-1 rounded ${
+            className={`px-7 py-2 rounded-3xl ${
               dateRange === range ? "bg-secondary text-white" : " text-white"
             }`}
           >
