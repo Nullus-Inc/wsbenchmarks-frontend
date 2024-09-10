@@ -213,12 +213,25 @@ export default function StockGraph() {
   };
 
   return (
-    <div className="bg-gray-900 p-6 rounded-lg shadow-lg w-full max-w-6xl mx-auto">
-      <h2 className="text-2xl font-bold mb-4 text-gray-100">Stock Growth Comparison</h2>
+    <div className="p-6 rounded-lg shadow-lg w-full max-w-6xl mx-auto bg-primary-dark">
+      <div className="flex flex-row justify-between items-center">
+        <h1 className="text-2xl font-bold mb-4 text-gray-100">Stock Growth Comparison</h1>
+        <div className="mt-4 flex justify-center space-x-4">
+          {stockSymbols.map((symbol, index) => (
+            <div key={symbol} className="flex items-center">
+              <div
+                className={`w-4 h-4 rounded-full mr-2`}
+                style={{ backgroundColor: colors[index] }}
+              ></div>
+              <span className="text-gray-300">{symbol}</span>
+            </div>
+          ))}
+        </div>
+      </div>
       <svg ref={svgRef} className="w-full h-full"></svg>
       <div
         ref={tabContainerRef}
-        className="relative flex flex-row flex-nowrap py-1 px-4 rounded-3xl bg-gray-800 justify-between items-center w-1/2 mx-auto mt-4"
+        className="relative flex flex-row flex-nowrap py-1 px-4 rounded-3xl bg-primary justify-between items-center w-1/2 mx-auto mt-4"
       >
         <div
           className="absolute h-10 bg-secondary rounded-3xl transition-all duration-200 ease-in-out"
@@ -239,17 +252,6 @@ export default function StockGraph() {
             }`}
           >
             {range}
-          </div>
-        ))}
-      </div>
-      <div className="mt-4 flex justify-center space-x-4">
-        {stockSymbols.map((symbol, index) => (
-          <div key={symbol} className="flex items-center">
-            <div
-              className={`w-4 h-4 rounded-full mr-2`}
-              style={{ backgroundColor: colors[index] }}
-            ></div>
-            <span className="text-gray-300">{symbol}</span>
           </div>
         ))}
       </div>
