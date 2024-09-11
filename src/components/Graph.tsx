@@ -234,7 +234,7 @@ export default function StockGraph() {
         className="relative flex flex-row flex-nowrap py-1 px-4 rounded-3xl bg-primary justify-between items-center w-1/2 mx-auto mt-4"
       >
         <div
-          className="absolute h-10 bg-secondary rounded-3xl transition-all duration-200 ease-in-out"
+          className="absolute h-10 bg-secondary rounded-3xl transition-all duration-300 ease-in-out"
           style={{
             width: `${sliderStyle.width + 20}px`,
             left: `${sliderStyle.left - 10}px`,
