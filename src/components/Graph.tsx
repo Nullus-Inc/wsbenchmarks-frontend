@@ -144,7 +144,7 @@ export default function StockGraph() {
         .style("fill", colorScale(symbol));
     });
 
-    svg
+    const overlay = svg
       .append("rect")
       .attr("width", width)
       .attr("height", height)
@@ -158,51 +158,74 @@ export default function StockGraph() {
       const bisect = d3.bisector((d: StockData) => d.date).left;
       const x0 = xScale.invert(d3.pointer(event)[0]);
 
+      let closestDataPoint: StockData | null = null;
+      let minDistance = Infinity;
+
       stockSymbols.forEach((symbol) => {
         const stockData = groupedData.get(symbol) || [];
         const i = bisect(stockData, x0, 1);
         const d0 = stockData[i - 1];
         const d1 = stockData[i];
         if (d0 && d1) {
-          const d =
-            x0.getTime() - d0.date.getTime() > d1.date.getTime() - x0.getTime()
-              ? d1
-              : d0;
-          focus
-            .select(`.circle-${symbol.replace(" ", "-")}`)
-            .attr("transform", `translate(${xScale(d.date)},${yScale(d.value)})`);
-          focus
-            .select(`.text-${symbol.replace(" ", "-")}`)
-            .text(`${symbol}: $${d.value.toFixed(2)} (${d.percentageGrowth.toFixed(2)}%)`)
-            .attr("transform", `translate(${xScale(d.date)},${yScale(d.value)})`);
+          const d = x0.getTime() - d0.date.getTime() > d1.date.getTime() - x0.getTime() ? d1 : d0;
+          const distance = Math.abs(x0.getTime() - d.date.getTime());
+          if (distance < minDistance) {
+            minDistance = distance;
+            closestDataPoint = d;
+          }
         }
       });
 
-      focus
-        .select(".x-hover-line")
-        .attr("transform", `translate(${d3.pointer(event)[0]},0)`);
+      if (closestDataPoint) {
+        const x = xScale(closestDataPoint.date);
+
+        focus
+          .select(".x-hover-line")
+          .attr("transform", `translate(${x},0)`);
+
+        stockSymbols.forEach((symbol) => {
+          const stockData = groupedData.get(symbol) || [];
+          const d = stockData.find(d => d.date.getTime() === closestDataPoint!.date.getTime());
+          if (d) {
+            focus
+              .select(`.circle-${symbol.replace(" ", "-")}`)
+              .attr("transform", `translate(${x},${yScale(d.value)})`);
+            focus
+              .select(`.text-${symbol.replace(" ", "-")}`)
+              .text(`${symbol}: $${d.value.toFixed(2)} (${d.percentageGrowth.toFixed(2)}%)`)
+              .attr("transform", `translate(${x},${yScale(d.value)})`);
+          }
+        });
+
+        // Adjust opacity of lines to the right of the cursor
+        groupedData.forEach((stockData, symbol) => {
+          svg.selectAll(`path[stroke="${colorScale(symbol)}"]`)
+            .attr("stroke-opacity", function(this: SVGPathElement) {
+              const totalLength = this.getTotalLength();
+              const point = this.getPointAtLength(x);
+              return d3.scaleLinear()
+                .domain([0, totalLength])
+                .range([1, 0.5])
+                .clamp(true)(point.x);
+            });
+        });
+      }
     }
   }, [data]);
 
   useEffect(() => {
-    // Function to update the slider's position and width based on the active tab
     const updateSliderPosition = () => {
       if (tabRefs.current[activeTabPosition] && tabContainerRef.current) {
         const activeTab = tabRefs.current[activeTabPosition];
         const containerRect = tabContainerRef.current.getBoundingClientRect();
         const tabRect = activeTab.getBoundingClientRect();
-
-        // Calculate the left position relative to the container
         const left = tabRect.left - containerRect.left;
         const width = tabRect.width;
-
         setSliderStyle({ width, left });
       }
     };
 
     updateSliderPosition();
-
-    // Update slider on window resize
     window.addEventListener("resize", updateSliderPosition);
     return () => window.removeEventListener("resize", updateSliderPosition);
   }, [activeTabPosition]);
