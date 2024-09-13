@@ -42,6 +42,7 @@ export default function StockGraph() {
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<HTMLDivElement[]>([]);
   const [currentValues, setCurrentValues] = useState<{ [key: string]: number }>({});
+  const [currentPercentages, setCurrentPercentages] = useState<{ [key: string]: number }>({});
 
   useEffect(() => {
     const daysMap: Record<DateRange, number> = {
@@ -61,7 +62,7 @@ export default function StockGraph() {
   useEffect(() => {
     if (data.length === 0) return;
 
-    const margin = { top: 20, right: 90, bottom: 30, left: 90 };
+    const margin = { top: 20, right: 90, bottom: 20, left: 90 };
     const width = Math.min(1200, window.innerWidth - 40) - margin.left - margin.right;
     const height = 500 - margin.top - margin.bottom;
 
@@ -151,7 +152,7 @@ export default function StockGraph() {
       .attr("dy", "1em")
       .style("text-anchor", "middle")
       .style("fill", "#E2E8F0")
-      .text("Total Invested Amount (CAD)");
+      .text("Total Investment Value (CAD)");
 
     const focus = svg.append("g").attr("class", "focus").style("display", "none");
 
@@ -190,6 +191,7 @@ export default function StockGraph() {
       let closestDate: Date | null = null;
       let minDistance = Infinity;
       const newValues: { [key: string]: number } = {};
+      const newPercentages: { [key: string]: number } = {};
 
       stockSymbols.forEach((symbol) => {
         const stockData = groupedData.get(symbol) || [];
@@ -208,10 +210,12 @@ export default function StockGraph() {
             .attr("transform", `translate(${xScale(d.date)},${yScale(d.value)})`);
           
           newValues[symbol] = d.value;
+          newPercentages[symbol] = d.percentageGrowth;
         }
       });
 
       setCurrentValues(newValues);
+      setCurrentPercentages(newPercentages);
 
       if (closestDate) {
         const xPos = xScale(closestDate);
@@ -257,14 +261,19 @@ export default function StockGraph() {
   return (
     <div className="p-6 rounded-lg shadow-lg w-full max-w-6xl mx-auto bg-primary-dark">
       <div className="flex justify-between items-center mb-4">
-        <div className="flex space-x-4 my-4">
+        <div className="flex flex-col my-4">
           {stockSymbols.map((symbol, index) => (
-            <div key={symbol} className="flex items-center">
+            <div key={symbol} className="flex items-center mx-4">
               <div
                 className={`w-4 h-4 rounded-full mr-2`}
                 style={{ backgroundColor: colors[index] }}
               ></div>
-              <span className="text-xl font-bold text-gray-300">{symbol}: ${currentValues[symbol]?.toFixed(2) || '0.00'}</span>
+              <span className="text-xl font-bold text-gray-300">
+                {symbol}: ${currentValues[symbol]?.toFixed(2) || '0.00'}
+                <span className={`ml-2 ${currentPercentages[symbol] >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  ({currentPercentages[symbol]?.toFixed(2) || '0.00'}%)
+                </span>
+              </span>
             </div>
           ))}
         </div>
