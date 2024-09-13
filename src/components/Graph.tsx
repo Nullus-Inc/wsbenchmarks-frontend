@@ -41,6 +41,7 @@ export default function StockGraph() {
   const [sliderStyle, setSliderStyle] = useState({ width: 0, left: 0 });
   const tabContainerRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<HTMLDivElement[]>([]);
+  const [currentValues, setCurrentValues] = useState<{ [key: string]: number }>({});
 
   useEffect(() => {
     const daysMap: Record<DateRange, number> = {
@@ -60,7 +61,7 @@ export default function StockGraph() {
   useEffect(() => {
     if (data.length === 0) return;
 
-    const margin = { top: 20, right: 80, bottom: 30, left: 60 };
+    const margin = { top: 20, right: 90, bottom: 30, left: 90 };
     const width = Math.min(1200, window.innerWidth - 40) - margin.left - margin.right;
     const height = 500 - margin.top - margin.bottom;
 
@@ -85,17 +86,51 @@ export default function StockGraph() {
     const line = d3.line<StockData>()
       .x((d) => xScale(d.date))
       .y((d) => yScale(d.value));
-
+      
     const groupedData = d3.group(data, (d) => d.symbol);
 
+    // Add clipPath for the left side of the graph
+    const leftClipPath = svg.append("defs")
+      .append("clipPath")
+        .attr("id", "left-clip-path")
+      .append("rect")
+        .attr("width", width)
+        .attr("height", height);
+
+    // Add clipPath for the right side of the graph
+    const rightClipPath = svg.append("defs")
+      .append("clipPath")
+        .attr("id", "right-clip-path")
+      .append("rect")
+        .attr("x", width)
+        .attr("width", 0)
+        .attr("height", height);
+
     groupedData.forEach((stockData, symbol) => {
+      // Left side of the graph (full opacity)
       svg
+        .append("g")
+        .attr("clip-path", "url(#left-clip-path)")
         .append("path")
         .datum(stockData)
         .attr("fill", "none")
         .attr("stroke", colorScale(symbol))
         .attr("stroke-width", 2)
-        .attr("d", line);
+        .attr("d", line)
+        .attr("class", `line-${symbol.replace(" ", "-")}`);
+
+      // Right side of the graph (reduced opacity)
+      svg
+        .append("g")
+        .attr("clip-path", "url(#right-clip-path)")
+        .append("path")
+        .datum(stockData)
+        .attr("fill", "none")
+        .attr("stroke", colorScale(symbol))
+        .attr("stroke-width", 2)
+        .attr("d", line)
+        .attr("class", `line-${symbol.replace(" ", "-")}`)
+        .style("opacity", 0.25);
     });
 
     svg
@@ -116,7 +151,7 @@ export default function StockGraph() {
       .attr("dy", "1em")
       .style("text-anchor", "middle")
       .style("fill", "#E2E8F0")
-      .text("Total Invested Amount ($)");
+      .text("Total Invested Amount (CAD)");
 
     const focus = svg.append("g").attr("class", "focus").style("display", "none");
 
@@ -129,22 +164,15 @@ export default function StockGraph() {
       .style("stroke-width", "1px")
       .style("stroke-dasharray", "3,3");
 
-    stockSymbols.forEach((symbol, index) => {
+    stockSymbols.forEach((symbol) => {
       focus
         .append("circle")
         .attr("r", 5)
         .attr("fill", colorScale(symbol))
         .attr("class", `circle-${symbol.replace(" ", "-")}`);
-
-      focus
-        .append("text")
-        .attr("class", `text-${symbol.replace(" ", "-")}`)
-        .attr("x", 15)
-        .attr("dy", `${1.2 + index * 1.2}em`)
-        .style("fill", colorScale(symbol));
     });
 
-    const overlay = svg
+    svg
       .append("rect")
       .attr("width", width)
       .attr("height", height)
@@ -155,11 +183,13 @@ export default function StockGraph() {
       .on("mousemove", mousemove);
 
     function mousemove(event: MouseEvent) {
+      const [mouseX] = d3.pointer(event);
       const bisect = d3.bisector((d: StockData) => d.date).left;
-      const x0 = xScale.invert(d3.pointer(event)[0]);
+      const x0 = xScale.invert(mouseX);
 
-      let closestDataPoint: StockData | null = null;
+      let closestDate: Date | null = null;
       let minDistance = Infinity;
+      const newValues: { [key: string]: number } = {};
 
       stockSymbols.forEach((symbol) => {
         const stockData = groupedData.get(symbol) || [];
@@ -168,64 +198,53 @@ export default function StockGraph() {
         const d1 = stockData[i];
         if (d0 && d1) {
           const d = x0.getTime() - d0.date.getTime() > d1.date.getTime() - x0.getTime() ? d1 : d0;
-          const distance = Math.abs(x0.getTime() - d.date.getTime());
+          const distance = Math.abs(d.date.getTime() - x0.getTime());
           if (distance < minDistance) {
             minDistance = distance;
-            closestDataPoint = d;
+            closestDate = d.date;
           }
+          focus
+            .select(`.circle-${symbol.replace(" ", "-")}`)
+            .attr("transform", `translate(${xScale(d.date)},${yScale(d.value)})`);
+          
+          newValues[symbol] = d.value;
         }
       });
 
-      if (closestDataPoint) {
-        const x = xScale(closestDataPoint.date);
+      setCurrentValues(newValues);
 
+      if (closestDate) {
+        const xPos = xScale(closestDate);
         focus
           .select(".x-hover-line")
-          .attr("transform", `translate(${x},0)`);
+          .attr("transform", `translate(${xPos},0)`);
 
-        stockSymbols.forEach((symbol) => {
-          const stockData = groupedData.get(symbol) || [];
-          const d = stockData.find(d => d.date.getTime() === closestDataPoint!.date.getTime());
-          if (d) {
-            focus
-              .select(`.circle-${symbol.replace(" ", "-")}`)
-              .attr("transform", `translate(${x},${yScale(d.value)})`);
-            focus
-              .select(`.text-${symbol.replace(" ", "-")}`)
-              .text(`${symbol}: $${d.value.toFixed(2)} (${d.percentageGrowth.toFixed(2)}%)`)
-              .attr("transform", `translate(${x},${yScale(d.value)})`);
-          }
-        });
-
-        // Adjust opacity of lines to the right of the cursor
-        groupedData.forEach((stockData, symbol) => {
-          svg.selectAll(`path[stroke="${colorScale(symbol)}"]`)
-            .attr("stroke-opacity", function(this: SVGPathElement) {
-              const totalLength = this.getTotalLength();
-              const point = this.getPointAtLength(x);
-              return d3.scaleLinear()
-                .domain([0, totalLength])
-                .range([1, 0.5])
-                .clamp(true)(point.x);
-            });
-        });
+        // Update clipPaths
+        leftClipPath.attr("width", xPos);
+        rightClipPath.attr("x", xPos).attr("width", width - xPos);
       }
     }
   }, [data]);
 
   useEffect(() => {
+    // Function to update the slider's position and width based on the active tab
     const updateSliderPosition = () => {
       if (tabRefs.current[activeTabPosition] && tabContainerRef.current) {
         const activeTab = tabRefs.current[activeTabPosition];
         const containerRect = tabContainerRef.current.getBoundingClientRect();
         const tabRect = activeTab.getBoundingClientRect();
+
+        // Calculate the left position relative to the container
         const left = tabRect.left - containerRect.left;
         const width = tabRect.width;
+
         setSliderStyle({ width, left });
       }
     };
 
     updateSliderPosition();
+
+    // Update slider on window resize
     window.addEventListener("resize", updateSliderPosition);
     return () => window.removeEventListener("resize", updateSliderPosition);
   }, [activeTabPosition]);
@@ -237,18 +256,20 @@ export default function StockGraph() {
 
   return (
     <div className="p-6 rounded-lg shadow-lg w-full max-w-6xl mx-auto bg-primary-dark">
-      <div className="flex flex-row justify-between items-center">
-        <h1 className="text-2xl font-bold mb-4 text-gray-100">Stock Growth Comparison</h1>
-        <div className="mt-4 flex justify-center space-x-4">
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex space-x-4 my-4">
           {stockSymbols.map((symbol, index) => (
             <div key={symbol} className="flex items-center">
               <div
                 className={`w-4 h-4 rounded-full mr-2`}
                 style={{ backgroundColor: colors[index] }}
               ></div>
-              <span className="text-gray-300">{symbol}</span>
+              <span className="text-xl font-bold text-gray-300">{symbol}: ${currentValues[symbol]?.toFixed(2) || '0.00'}</span>
             </div>
           ))}
+        </div>
+        <div className="text-xl font-bold text-gray-300">
+          Net deposits: $10,000.00
         </div>
       </div>
       <svg ref={svgRef} className="w-full h-full"></svg>
